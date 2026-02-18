@@ -1,0 +1,300 @@
+// Schéma Prisma — FactuPilot
+// SaaS de devis et factures pour micro-entrepreneurs
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ============================================
+// ENUMS
+// ============================================
+
+enum Plan {
+  FREE
+  STARTER
+  PRO
+  BUSINESS
+}
+
+enum VatRegime {
+  FRANCHISE   // TVA non applicable (art. 293 B du CGI)
+  NORMAL      // Assujetti à la TVA
+}
+
+enum LegalForm {
+  EI          // Entrepreneur individuel (micro-entreprise)
+  EURL
+  SASU
+  SARL
+  SAS
+  OTHER
+}
+
+enum ActivityType {
+  ARTISAN_BTP       // Plombier, électricien, peintre, maçon...
+  FREELANCE_TECH    // Développeur, designer, rédacteur...
+  CONSULTANT        // Coach, formateur, consultant
+  COMMERCE          // Commerce, vente
+  SERVICES          // Prestations de services diverses
+  OTHER
+}
+
+enum QuoteStatus {
+  DRAFT
+  SENT
+  ACCEPTED
+  REFUSED
+  EXPIRED
+}
+
+enum InvoiceStatus {
+  DRAFT
+  SENT
+  PAID
+  OVERDUE
+  CANCELLED
+}
+
+enum ReminderType {
+  EMAIL
+  SMS
+}
+
+enum ReminderStatus {
+  PENDING
+  SENT
+  FAILED
+}
+
+enum Unit {
+  HOUR      // Heure
+  DAY       // Jour
+  UNIT      // Unité / pièce
+  FIXED     // Forfait
+  SQM       // m² (mètre carré)
+  LM        // ml (mètre linéaire)
+  KG        // Kilogramme
+  LOT       // Lot
+}
+
+// ============================================
+// MODÈLES
+// ============================================
+
+/// Utilisateur authentifié via Supabase
+model User {
+  id                   String    @id @default(cuid())
+  email                String    @unique
+  name                 String?
+  avatarUrl            String?   @map("avatar_url")
+  stripeCustomerId     String?   @unique @map("stripe_customer_id")
+  stripeSubscriptionId String?   @unique @map("stripe_subscription_id")
+  plan                 Plan      @default(FREE)
+  isAdmin              Boolean   @default(false) @map("is_admin")
+  createdAt            DateTime  @default(now()) @map("created_at")
+  updatedAt            DateTime  @updatedAt @map("updated_at")
+
+  company Company?
+
+  @@map("users")
+}
+
+/// Profil entreprise du micro-entrepreneur
+model Company {
+  id           String       @id @default(cuid())
+  userId       String       @unique @map("user_id")
+  name         String       // Raison sociale ou nom commercial
+  siret        String?      // Numéro SIRET (14 chiffres)
+  siren        String?      // Numéro SIREN (9 chiffres, déduit du SIRET)
+  address      String?
+  city         String?
+  zipCode      String?      @map("zip_code")
+  phone        String?
+  email        String?      // Email professionnel (peut différer du compte)
+  website      String?
+  logoUrl      String?      @map("logo_url")
+  vatRegime    VatRegime    @default(FRANCHISE) @map("vat_regime")
+  vatNumber    String?      @map("vat_number") // Numéro de TVA intracommunautaire
+  legalForm    LegalForm    @default(EI) @map("legal_form")
+  activityType ActivityType @default(OTHER) @map("activity_type")
+  apeCode      String?      @map("ape_code") // Code APE / NAF
+  rcsCity      String?      @map("rcs_city") // Ville d'immatriculation RCS
+
+  // Personnalisation des documents
+  primaryColor String?      @map("primary_color") // Couleur principale (#hex)
+  customNotes  String?      @map("custom_notes")  // Mentions personnalisées sur les docs
+
+  // Numérotation des documents
+  quotePrefix   String  @default("DE") @map("quote_prefix")   // Préfixe devis (DE-2026-0001)
+  invoicePrefix String  @default("FA") @map("invoice_prefix")  // Préfixe facture (FA-2026-0001)
+  nextQuoteNum  Int     @default(1) @map("next_quote_num")
+  nextInvoiceNum Int    @default(1) @map("next_invoice_num")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  clients  Client[]
+  quotes   Quote[]
+  invoices Invoice[]
+
+  @@map("companies")
+}
+
+/// Client du micro-entrepreneur
+model Client {
+  id        String   @id @default(cuid())
+  companyId String   @map("company_id")
+  name      String   // Nom ou raison sociale du client
+  siret     String?  // SIRET du client (B2B)
+  siren     String?  // SIREN du client
+  address   String?
+  city      String?
+  zipCode   String?  @map("zip_code")
+  email     String?
+  phone     String?
+  notes     String?  // Notes internes sur le client
+  archivedAt DateTime? @map("archived_at")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  company  Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  quotes   Quote[]
+  invoices Invoice[]
+
+  @@map("clients")
+}
+
+/// Devis
+model Quote {
+  id         String      @id @default(cuid())
+  companyId  String      @map("company_id")
+  clientId   String      @map("client_id")
+  number     String      @unique // DE-2026-0001
+  status     QuoteStatus @default(DRAFT)
+  date       DateTime    @default(now()) // Date d'émission
+  validUntil DateTime    @map("valid_until") // Date de validité
+  subject    String?     // Objet du devis
+  notes      String?     // Notes / conditions particulières
+  conditions String?     // Conditions de paiement
+
+  // Remise globale (%)
+  discountPercent Decimal  @default(0) @map("discount_percent") @db.Decimal(5, 2)
+
+  // Totaux calculés
+  totalHt    Decimal  @default(0) @map("total_ht") @db.Decimal(10, 2)
+  totalVat   Decimal  @default(0) @map("total_vat") @db.Decimal(10, 2)
+  totalTtc   Decimal  @default(0) @map("total_ttc") @db.Decimal(10, 2)
+
+  sentAt     DateTime? @map("sent_at")
+  acceptedAt DateTime? @map("accepted_at")
+  refusedAt  DateTime? @map("refused_at")
+  createdAt  DateTime  @default(now()) @map("created_at")
+  updatedAt  DateTime  @updatedAt @map("updated_at")
+
+  company  Company     @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  client   Client      @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  items    QuoteItem[]
+  invoices Invoice[]   // Factures générées depuis ce devis
+
+  @@map("quotes")
+}
+
+/// Ligne de devis
+model QuoteItem {
+  id          String  @id @default(cuid())
+  quoteId     String  @map("quote_id")
+  description String  // Description de la prestation / fourniture
+  quantity    Decimal @default(1) @db.Decimal(10, 2)
+  unit        Unit    @default(UNIT)
+  unitPriceHt Decimal @map("unit_price_ht") @db.Decimal(10, 2)
+  vatRate         Decimal @default(0) @map("vat_rate") @db.Decimal(5, 2) // 0, 5.5, 10, 20
+  discountPercent Decimal @default(0) @map("discount_percent") @db.Decimal(5, 2) // Remise ligne (%)
+  totalHt         Decimal @default(0) @map("total_ht") @db.Decimal(10, 2)
+  position        Int     @default(0) // Ordre d'affichage
+
+  quote Quote @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+
+  @@map("quote_items")
+}
+
+/// Facture
+model Invoice {
+  id         String        @id @default(cuid())
+  companyId  String        @map("company_id")
+  clientId   String        @map("client_id")
+  quoteId    String?       @map("quote_id") // Devis source (optionnel)
+  number     String        @unique // FA-2026-0001
+  status     InvoiceStatus @default(DRAFT)
+  date       DateTime      @default(now()) // Date d'émission
+  dueDate    DateTime      @map("due_date") // Date d'échéance
+  subject    String?       // Objet de la facture
+  notes      String?       // Notes / mentions particulières
+
+  // Remise globale (%)
+  discountPercent Decimal  @default(0) @map("discount_percent") @db.Decimal(5, 2)
+
+  // Totaux calculés
+  totalHt    Decimal  @default(0) @map("total_ht") @db.Decimal(10, 2)
+  totalVat   Decimal  @default(0) @map("total_vat") @db.Decimal(10, 2)
+  totalTtc   Decimal  @default(0) @map("total_ttc") @db.Decimal(10, 2)
+
+  // Paiement
+  paidAt        DateTime? @map("paid_at")
+  paidAmount    Decimal?  @map("paid_amount") @db.Decimal(10, 2)
+  paymentMethod String?   @map("payment_method") // virement, carte, chèque, espèces
+  stripePaymentUrl String? @map("stripe_payment_url") // Lien de paiement en ligne
+
+  // Facturation électronique (Factur-X)
+  facturxXml String? @map("facturx_xml") @db.Text
+
+  sentAt    DateTime? @map("sent_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+
+  company   Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  client    Client        @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  quote     Quote?        @relation(fields: [quoteId], references: [id], onDelete: SetNull)
+  items     InvoiceItem[]
+  reminders Reminder[]
+
+  @@map("invoices")
+}
+
+/// Ligne de facture
+model InvoiceItem {
+  id          String  @id @default(cuid())
+  invoiceId   String  @map("invoice_id")
+  description String  // Description de la prestation / fourniture
+  quantity    Decimal @default(1) @db.Decimal(10, 2)
+  unit        Unit    @default(UNIT)
+  unitPriceHt Decimal @map("unit_price_ht") @db.Decimal(10, 2)
+  vatRate         Decimal @default(0) @map("vat_rate") @db.Decimal(5, 2)
+  discountPercent Decimal @default(0) @map("discount_percent") @db.Decimal(5, 2) // Remise ligne (%)
+  totalHt         Decimal @default(0) @map("total_ht") @db.Decimal(10, 2)
+  position        Int     @default(0)
+
+  invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@map("invoice_items")
+}
+
+/// Relance de paiement
+model Reminder {
+  id        String         @id @default(cuid())
+  invoiceId String         @map("invoice_id")
+  type      ReminderType   @default(EMAIL)
+  status    ReminderStatus @default(PENDING)
+  content   String?        @db.Text // Contenu du message de relance
+  sentAt    DateTime?      @map("sent_at")
+  createdAt DateTime       @default(now()) @map("created_at")
+
+  invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@map("reminders")
+}
