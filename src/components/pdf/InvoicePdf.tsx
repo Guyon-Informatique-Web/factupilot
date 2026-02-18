@@ -57,12 +57,32 @@ export function InvoicePdf({ invoice, company, client }: InvoicePdfProps) {
   // Sous-total HT (somme des lignes avant remise globale)
   const subtotalHt = invoice.items.reduce((sum, item) => sum + Number(item.totalHt), 0)
 
+  // Détail TVA par taux (pour affichage dans les totaux)
+  const vatByRate: Record<number, number> = {}
+  for (const item of invoice.items) {
+    const rate = Number(item.vatRate)
+    if (rate > 0) {
+      const itemVat = Number(item.totalHt) * rate / 100
+      vatByRate[rate] = (vatByRate[rate] || 0) + itemVat
+    }
+  }
+  // Appliquer la remise globale proportionnellement sur chaque taux
+  if (globalDiscount > 0 && subtotalHt > 0) {
+    const ratio = Number(invoice.totalHt) / subtotalHt
+    for (const rate of Object.keys(vatByRate)) {
+      vatByRate[Number(rate)] = Math.round(vatByRate[Number(rate)] * ratio * 100) / 100
+    }
+  }
+  const vatRates = Object.keys(vatByRate).map(Number).sort((a, b) => a - b)
+  const hasMultipleVatRates = vatRates.length > 1
+
   // Colonnes avec ou sans remise
   const colDesc = hasLineDiscount ? s.colDescDisc : s.colDesc
   const colQty = hasLineDiscount ? s.colQtyDisc : s.colQty
   const colUnit = hasLineDiscount ? s.colUnitDisc : s.colUnit
   const colVat = hasLineDiscount ? s.colVatDisc : s.colVat
   const colTotal = hasLineDiscount ? s.colTotalDisc : s.colTotal
+  const colTtc = hasLineDiscount ? s.colTtcDisc : s.colTtc
 
   return (
     <Document>
@@ -133,23 +153,29 @@ export function InvoicePdf({ invoice, company, client }: InvoicePdfProps) {
             )}
             <Text style={[s.tableHeaderCell, colVat]}>TVA</Text>
             <Text style={[s.tableHeaderCell, colTotal]}>Total HT</Text>
+            <Text style={[s.tableHeaderCell, colTtc]}>Total TTC</Text>
           </View>
-          {invoice.items.map((item, index) => (
-            <View style={s.tableRow} key={index}>
-              <Text style={[s.tableCell, colDesc]}>{item.description}</Text>
-              <Text style={[s.tableCell, colQty]}>
-                {`${Number(item.quantity)} ${UNIT_LABELS[item.unit] || item.unit}`}
-              </Text>
-              <Text style={[s.tableCell, colUnit]}>{formatEuroPdf(item.unitPriceHt)}</Text>
-              {hasLineDiscount && (
-                <Text style={[s.tableCell, s.colDiscDisc]}>
-                  {Number(item.discountPercent) > 0 ? `${Number(item.discountPercent)}%` : "\u2014"}
+          {invoice.items.map((item, index) => {
+            const itemTotalHt = Number(item.totalHt)
+            const itemTotalTtc = itemTotalHt + itemTotalHt * Number(item.vatRate) / 100
+            return (
+              <View style={s.tableRow} key={index}>
+                <Text style={[s.tableCell, colDesc]}>{item.description}</Text>
+                <Text style={[s.tableCell, colQty]}>
+                  {`${Number(item.quantity)} ${UNIT_LABELS[item.unit] || item.unit}`}
                 </Text>
-              )}
-              <Text style={[s.tableCell, colVat]}>{`${Number(item.vatRate)} %`}</Text>
-              <Text style={[s.tableCell, colTotal]}>{formatEuroPdf(item.totalHt)}</Text>
-            </View>
-          ))}
+                <Text style={[s.tableCell, colUnit]}>{formatEuroPdf(item.unitPriceHt)}</Text>
+                {hasLineDiscount && (
+                  <Text style={[s.tableCell, s.colDiscDisc]}>
+                    {Number(item.discountPercent) > 0 ? `${Number(item.discountPercent)}%` : "\u2014"}
+                  </Text>
+                )}
+                <Text style={[s.tableCell, colVat]}>{`${Number(item.vatRate)} %`}</Text>
+                <Text style={[s.tableCell, colTotal]}>{formatEuroPdf(item.totalHt)}</Text>
+                <Text style={[s.tableCell, colTtc]}>{formatEuroPdf(itemTotalTtc)}</Text>
+              </View>
+            )
+          })}
         </View>
 
         {/* Totaux */}
@@ -170,9 +196,15 @@ export function InvoicePdf({ invoice, company, client }: InvoicePdfProps) {
             <Text style={s.totalsLabel}>Total HT</Text>
             <Text style={s.totalsValue}>{formatEuroPdf(invoice.totalHt)}</Text>
           </View>
+          {company.vatRegime === "NORMAL" && hasMultipleVatRates && vatRates.map((rate) => (
+            <View style={s.totalsRow} key={rate}>
+              <Text style={s.totalsLabel}>{`TVA ${rate} %`}</Text>
+              <Text style={s.totalsValue}>{formatEuroPdf(vatByRate[rate])}</Text>
+            </View>
+          ))}
           {company.vatRegime === "NORMAL" && (
             <View style={s.totalsRow}>
-              <Text style={s.totalsLabel}>TVA</Text>
+              <Text style={s.totalsLabel}>Total TVA</Text>
               <Text style={s.totalsValue}>{formatEuroPdf(invoice.totalVat)}</Text>
             </View>
           )}

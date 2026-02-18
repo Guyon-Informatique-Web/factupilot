@@ -105,25 +105,31 @@ export const pdfStyles = StyleSheet.create({
     color: "#6b7280",
     textTransform: "uppercase" as const,
     letterSpacing: 0.5,
+    paddingHorizontal: 4,
   },
   tableCell: {
     fontSize: 9,
     color: "#374151",
+    paddingHorizontal: 4,
   },
-  // Largeurs des colonnes (5 colonnes standard)
-  colDesc: { width: "42%" },
-  colQty: { width: "12%", textAlign: "center" as const },
-  colUnit: { width: "15%", textAlign: "right" as const },
-  colVat: { width: "11%", textAlign: "center" as const },
-  colTotal: { width: "20%", textAlign: "right" as const },
+  // Largeurs des colonnes — description flexible, numériques fixes (en pt)
+  // Largeur page A4 = 515pt utiles (595 - 2×40 padding)
+  // 6 colonnes standard : desc (flex), qté, PU HT, TVA, Total HT, Total TTC
+  colDesc: { flex: 1 },
+  colQty: { width: 50, textAlign: "center" as const },
+  colUnit: { width: 75, textAlign: "right" as const },
+  colVat: { width: 40, textAlign: "center" as const },
+  colTotal: { width: 80, textAlign: "right" as const },
+  colTtc: { width: 80, textAlign: "right" as const },
 
-  // Largeurs des colonnes (6 colonnes avec remise)
-  colDescDisc: { width: "35%" },
-  colQtyDisc: { width: "10%", textAlign: "center" as const },
-  colUnitDisc: { width: "14%", textAlign: "right" as const },
-  colDiscDisc: { width: "10%", textAlign: "center" as const },
-  colVatDisc: { width: "11%", textAlign: "center" as const },
-  colTotalDisc: { width: "20%", textAlign: "right" as const },
+  // 7 colonnes avec remise : desc (flex), qté, PU HT, remise, TVA, Total HT, Total TTC
+  colDescDisc: { flex: 1 },
+  colQtyDisc: { width: 45, textAlign: "center" as const },
+  colUnitDisc: { width: 72, textAlign: "right" as const },
+  colDiscDisc: { width: 45, textAlign: "center" as const },
+  colVatDisc: { width: 38, textAlign: "center" as const },
+  colTotalDisc: { width: 78, textAlign: "right" as const },
+  colTtcDisc: { width: 78, textAlign: "right" as const },
 
   // Totaux
   totalsBlock: {
