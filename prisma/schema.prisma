@@ -253,6 +253,13 @@ model Invoice {
   // Facturation électronique (Factur-X)
   facturxXml String? @map("facturx_xml") @db.Text
 
+  // Transmission PDP (Plateforme de Dématérialisation Partenaire)
+  pdpProvider    String?   @map("pdp_provider")     // "superpdp" | "iopole"
+  pdpInvoiceId   String?   @map("pdp_invoice_id")   // ID retourné par le PDP
+  pdpStatus      String?   @map("pdp_status")       // uploaded, processing, accepted, rejected, error
+  pdpSubmittedAt DateTime? @map("pdp_submitted_at")
+  pdpError       String?   @map("pdp_error") @db.Text
+
   sentAt    DateTime? @map("sent_at")
   createdAt DateTime  @default(now()) @map("created_at")
   updatedAt DateTime  @updatedAt @map("updated_at")

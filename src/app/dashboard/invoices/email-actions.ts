@@ -1,12 +1,16 @@
 "use server"
 
 // Envoi de facture par email au client
+// Si le plan inclut Factur-X, la pièce jointe est un PDF/A-3b avec XML embarqué
 import { prisma } from "@/lib/prisma"
 import { resend } from "@/lib/resend"
 import { requireUser } from "@/lib/auth"
 import { renderToBuffer } from "@react-pdf/renderer"
 import { InvoicePdf } from "@/components/pdf/InvoicePdf"
 import { revalidatePath } from "next/cache"
+import { getPlanLimits, type PlanType } from "@/config/plans"
+import { generateFacturX } from "@/lib/facturx"
+import { submitInvoiceToPdp } from "@/lib/pdp"
 
 export async function sendInvoiceByEmail(invoiceId: string) {
   const user = await requireUser()
@@ -27,10 +31,36 @@ export async function sendInvoiceByEmail(invoiceId: string) {
   if (!invoice) throw new Error("Facture introuvable")
   if (!invoice.client.email) throw new Error("Le client n'a pas d'adresse email configurée")
 
-  // Générer le PDF
-  const pdfBuffer = await renderToBuffer(
+  // Générer le PDF standard
+  const standardPdf = await renderToBuffer(
     InvoicePdf({ invoice, company, client: invoice.client })
   )
+
+  // Tenter la conversion Factur-X si le plan le permet
+  let finalPdf: Buffer = Buffer.from(standardPdf)
+  let facturxXml: string | null = null
+  const limits = getPlanLimits(user.plan as PlanType)
+
+  if (limits.facturx) {
+    try {
+      const { xml, pdfBuffer } = await generateFacturX(
+        invoice,
+        company,
+        new Uint8Array(standardPdf)
+      )
+      finalPdf = Buffer.from(pdfBuffer)
+      facturxXml = xml
+
+      // Stocker le XML en BDD (fire-and-forget)
+      prisma.invoice.update({
+        where: { id: invoice.id },
+        data: { facturxXml: xml },
+      }).catch((err) => console.error("[Factur-X] Erreur stockage XML :", err))
+    } catch (err) {
+      // Fallback vers le PDF standard, pas de crash
+      console.error("[Factur-X] Erreur génération email, fallback PDF standard :", err)
+    }
+  }
 
   const formatDate = (date: Date) =>
     new Intl.DateTimeFormat("fr-FR").format(new Date(date))
@@ -73,7 +103,7 @@ export async function sendInvoiceByEmail(invoiceId: string) {
     attachments: [
       {
         filename: `${invoice.number}.pdf`,
-        content: Buffer.from(pdfBuffer),
+        content: finalPdf,
       },
     ],
   })
@@ -84,6 +114,13 @@ export async function sendInvoiceByEmail(invoiceId: string) {
       where: { id: invoiceId },
       data: { status: "SENT", sentAt: new Date() },
     })
+  }
+
+  // Soumettre au PDP si Factur-X a été généré (fire-and-forget, ne bloque pas l'envoi email)
+  if (facturxXml) {
+    submitInvoiceToPdp(invoiceId, facturxXml)
+      .then((result) => console.log(`[PDP] Facture ${invoice.number} soumise : ${result.status}`))
+      .catch((err) => console.error(`[PDP] Erreur soumission ${invoice.number} :`, err))
   }
 
   revalidatePath("/dashboard/invoices")
