@@ -41,7 +41,7 @@ export function RegisterForm() {
       return
     }
 
-    const { error } = await supabase.auth.signUp({
+    const { data, error } = await supabase.auth.signUp({
       email,
       password,
       options: {
@@ -56,7 +56,13 @@ export function RegisterForm() {
       return
     }
 
-    router.push("/login?message=verify_email")
+    // Si autoconfirm activé (session immédiate), aller directement au dashboard
+    if (data.session) {
+      router.push("/dashboard")
+      router.refresh()
+    } else {
+      router.push("/login?message=verify_email")
+    }
   }
 
   const handleOAuthLogin = async (provider: "google" | "github") => {
