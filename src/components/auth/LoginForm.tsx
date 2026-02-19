@@ -2,7 +2,7 @@
 
 // Formulaire de connexion avec email/mot de passe et OAuth
 import { useState } from "react"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import Link from "next/link"
 import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
@@ -14,12 +14,16 @@ import { Loader2, Eye, EyeOff } from "lucide-react"
 
 export function LoginForm() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const supabase = createClient()
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
+
+  const message = searchParams.get("message")
+  const authError = searchParams.get("error")
 
   const handleEmailLogin = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -32,7 +36,11 @@ export function LoginForm() {
     })
 
     if (error) {
-      setError("Email ou mot de passe incorrect")
+      if (error.message?.includes("Email not confirmed")) {
+        setError("Veuillez confirmer votre email avant de vous connecter. Vérifiez votre boîte de réception.")
+      } else {
+        setError("Email ou mot de passe incorrect")
+      }
       setLoading(false)
       return
     }
@@ -64,6 +72,18 @@ export function LoginForm() {
       </CardHeader>
       <CardContent>
         <form onSubmit={handleEmailLogin} className="space-y-4">
+          {message === "verify_email" && (
+            <Alert>
+              <AlertDescription>
+                Inscription réussie ! Vérifiez votre email pour confirmer votre compte.
+              </AlertDescription>
+            </Alert>
+          )}
+          {authError === "auth_error" && (
+            <Alert variant="destructive">
+              <AlertDescription>Erreur d&apos;authentification. Veuillez réessayer.</AlertDescription>
+            </Alert>
+          )}
           {error && (
             <Alert variant="destructive">
               <AlertDescription>{error}</AlertDescription>
