@@ -101,9 +101,8 @@ export function OnboardingForm({ userId }: OnboardingFormProps) {
       })
 
       if (result.success) {
-        // Redirect côté client — plus de redirect() dans le server action
+        // Navigation vers le dashboard (pas de refresh pour éviter une course avec push)
         router.push("/dashboard")
-        router.refresh()
       } else {
         setFieldErrors(result.errors)
         setError("Veuillez corriger les erreurs ci-dessous.")
