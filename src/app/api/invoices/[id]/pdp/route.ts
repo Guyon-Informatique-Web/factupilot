@@ -8,10 +8,11 @@ import { InvoicePdf } from "@/components/pdf/InvoicePdf"
 import { getPlanLimits, type PlanType } from "@/config/plans"
 import { generateFacturX } from "@/lib/facturx"
 import { submitInvoiceToPdp, refreshPdpStatus } from "@/lib/pdp"
+import { withErrorHandling } from "@/lib/api-error-handler"
 
-export async function POST(
+async function postHandler(
   _request: Request,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<Record<string, string>> }
 ) {
   const { id } = await params
   const user = await getCurrentUser()
@@ -82,9 +83,9 @@ export async function POST(
   }
 }
 
-export async function GET(
+async function getHandler(
   _request: Request,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<Record<string, string>> }
 ) {
   const { id } = await params
   const user = await getCurrentUser()
@@ -148,3 +149,6 @@ export async function GET(
     })
   }
 }
+
+export const POST = withErrorHandling(postHandler, "API")
+export const GET = withErrorHandling(getHandler, "API")

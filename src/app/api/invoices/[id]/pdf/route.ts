@@ -7,10 +7,11 @@ import { renderToBuffer } from "@react-pdf/renderer"
 import { InvoicePdf } from "@/components/pdf/InvoicePdf"
 import { getPlanLimits, type PlanType } from "@/config/plans"
 import { generateFacturX } from "@/lib/facturx"
+import { withErrorHandling } from "@/lib/api-error-handler"
 
-export async function GET(
+async function handler(
   _request: Request,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<Record<string, string>> }
 ) {
   const { id } = await params
   const user = await getCurrentUser()
@@ -78,3 +79,5 @@ export async function GET(
     },
   })
 }
+
+export const GET = withErrorHandling(handler, "API")

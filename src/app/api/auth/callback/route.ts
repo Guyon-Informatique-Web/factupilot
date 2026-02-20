@@ -1,8 +1,9 @@
 // Callback OAuth Supabase (Google, GitHub, reset password)
 import { createClient } from "@/lib/supabase/server"
 import { NextResponse } from "next/server"
+import { withErrorHandling } from "@/lib/api-error-handler"
 
-export async function GET(request: Request) {
+async function handler(request: Request) {
   const { searchParams, origin } = new URL(request.url)
   const code = searchParams.get("code")
   const next = searchParams.get("next") ?? "/dashboard"
@@ -26,3 +27,5 @@ export async function GET(request: Request) {
   // Erreur d'authentification, rediriger vers login avec erreur
   return NextResponse.redirect(`${origin}/login?error=auth_error`)
 }
+
+export const GET = withErrorHandling(handler, "AUTH")

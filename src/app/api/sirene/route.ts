@@ -1,6 +1,7 @@
 // API Route — Recherche SIRENE par numéro SIRET
 // Utilise l'API publique api.insee.fr pour préremplir les infos entreprise
 import { NextRequest, NextResponse } from "next/server"
+import { withErrorHandling } from "@/lib/api-error-handler"
 
 // Structure de la réponse simplifiée
 interface SireneResult {
@@ -14,7 +15,7 @@ interface SireneResult {
   legalForm: string
 }
 
-export async function GET(request: NextRequest) {
+async function handler(request: NextRequest) {
   const siret = request.nextUrl.searchParams.get("siret")
 
   if (!siret || siret.length !== 14) {
@@ -81,3 +82,5 @@ export async function GET(request: NextRequest) {
     )
   }
 }
+
+export const GET = withErrorHandling(handler, "API")

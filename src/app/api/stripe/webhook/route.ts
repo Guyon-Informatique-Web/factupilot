@@ -2,6 +2,7 @@
 import { stripe } from "@/lib/stripe"
 import { prisma } from "@/lib/prisma"
 import { NextResponse } from "next/server"
+import { withErrorHandling } from "@/lib/api-error-handler"
 import type Stripe from "stripe"
 import type { Plan } from "@/generated/prisma/client"
 
@@ -18,7 +19,7 @@ function getPlanFromPriceId(priceId: string): Plan {
   return mapping[priceId] || "FREE"
 }
 
-export async function POST(request: Request) {
+async function handler(request: Request) {
   const body = await request.text()
   const sig = request.headers.get("stripe-signature")
 
@@ -110,3 +111,5 @@ export async function POST(request: Request) {
 
   return NextResponse.json({ received: true })
 }
+
+export const POST = withErrorHandling(handler, "WEBHOOK")

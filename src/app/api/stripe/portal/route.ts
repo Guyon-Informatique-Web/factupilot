@@ -2,8 +2,9 @@
 import { getCurrentUser } from "@/lib/auth"
 import { stripe } from "@/lib/stripe"
 import { NextResponse } from "next/server"
+import { withErrorHandling } from "@/lib/api-error-handler"
 
-export async function POST() {
+async function handler() {
   const user = await getCurrentUser()
   if (!user) {
     return NextResponse.json({ error: "Non authentifié" }, { status: 401 })
@@ -22,3 +23,5 @@ export async function POST() {
 
   return NextResponse.json({ url: session.url })
 }
+
+export const POST = withErrorHandling(handler, "PAYMENT")

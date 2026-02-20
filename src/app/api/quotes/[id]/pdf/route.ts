@@ -4,10 +4,11 @@ import { prisma } from "@/lib/prisma"
 import { NextResponse } from "next/server"
 import { renderToBuffer } from "@react-pdf/renderer"
 import { QuotePdf } from "@/components/pdf/QuotePdf"
+import { withErrorHandling } from "@/lib/api-error-handler"
 
-export async function GET(
+async function handler(
   _request: Request,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<Record<string, string>> }
 ) {
   const { id } = await params
   const user = await getCurrentUser()
@@ -44,3 +45,5 @@ export async function GET(
     },
   })
 }
+
+export const GET = withErrorHandling(handler, "API")

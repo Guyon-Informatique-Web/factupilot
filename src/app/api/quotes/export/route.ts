@@ -2,6 +2,7 @@
 import { getCurrentUser } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { NextResponse } from "next/server"
+import { withErrorHandling } from "@/lib/api-error-handler"
 
 const UNIT_LABELS: Record<string, string> = {
   HOUR: "Heure",
@@ -35,7 +36,7 @@ function formatDate(date: Date): string {
   return new Intl.DateTimeFormat("fr-FR").format(new Date(date))
 }
 
-export async function GET() {
+async function handler() {
   const user = await getCurrentUser()
   if (!user) return NextResponse.json({ error: "Non autorisé" }, { status: 401 })
 
@@ -111,3 +112,5 @@ export async function GET() {
     },
   })
 }
+
+export const GET = withErrorHandling(handler, "API")
