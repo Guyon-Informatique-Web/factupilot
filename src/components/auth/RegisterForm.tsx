@@ -51,7 +51,15 @@ export function RegisterForm() {
     })
 
     if (error) {
-      setError("Erreur lors de l'inscription. Veuillez réessayer.")
+      // Traduire les erreurs Supabase courantes en français
+      const errorMessages: Record<string, string> = {
+        "User already registered": "Un compte existe déjà avec cet email.",
+        "Password should be at least 6 characters": "Le mot de passe doit contenir au moins 6 caractères.",
+        "Unable to validate email address: invalid format": "Le format de l'adresse email est invalide.",
+        "Signups not allowed for this instance": "Les inscriptions sont temporairement désactivées.",
+        "Email rate limit exceeded": "Trop de tentatives. Veuillez réessayer dans quelques minutes.",
+      }
+      setError(errorMessages[error.message] || `Erreur lors de l'inscription : ${error.message}`)
       setLoading(false)
       return
     }
@@ -59,7 +67,6 @@ export function RegisterForm() {
     // Si autoconfirm activé (session immédiate), aller directement au dashboard
     if (data.session) {
       router.push("/dashboard")
-      router.refresh()
     } else {
       router.push("/login?message=verify_email")
     }

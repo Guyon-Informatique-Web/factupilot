@@ -46,7 +46,6 @@ export function LoginForm() {
     }
 
     router.push("/dashboard")
-    router.refresh()
   }
 
   const handleOAuthLogin = async (provider: "google" | "github") => {
