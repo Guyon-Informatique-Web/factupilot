@@ -102,6 +102,21 @@ export async function archiveClient(clientId: string) {
   revalidatePath("/dashboard/clients")
 }
 
+// Archiver plusieurs clients
+export async function bulkArchiveClients(clientIds: string[]) {
+  const { company } = await getUserCompany()
+
+  await prisma.client.updateMany({
+    where: {
+      id: { in: clientIds },
+      companyId: company.id,
+    },
+    data: { archivedAt: new Date() },
+  })
+
+  revalidatePath("/dashboard/clients")
+}
+
 export async function restoreClient(clientId: string) {
   const { company } = await getUserCompany()
 

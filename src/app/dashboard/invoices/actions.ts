@@ -281,6 +281,72 @@ export async function deleteInvoice(invoiceId: string) {
   redirect("/dashboard/invoices")
 }
 
+// Archiver une facture (non-DRAFT uniquement)
+export async function archiveInvoice(invoiceId: string) {
+  const { company } = await getUserCompany()
+
+  const invoice = await prisma.invoice.findFirst({
+    where: { id: invoiceId, companyId: company.id },
+  })
+  if (!invoice) throw new Error("Facture introuvable")
+  if (invoice.status === "DRAFT") throw new Error("Les brouillons doivent être supprimés, pas archivés")
+
+  await prisma.invoice.update({
+    where: { id: invoiceId },
+    data: { archivedAt: new Date() },
+  })
+
+  revalidatePath("/dashboard/invoices")
+}
+
+// Restaurer une facture archivée
+export async function restoreInvoice(invoiceId: string) {
+  const { company } = await getUserCompany()
+
+  const invoice = await prisma.invoice.findFirst({
+    where: { id: invoiceId, companyId: company.id },
+  })
+  if (!invoice) throw new Error("Facture introuvable")
+
+  await prisma.invoice.update({
+    where: { id: invoiceId },
+    data: { archivedAt: null },
+  })
+
+  revalidatePath("/dashboard/invoices")
+}
+
+// Archiver plusieurs factures (non-DRAFT uniquement)
+export async function bulkArchiveInvoices(invoiceIds: string[]) {
+  const { company } = await getUserCompany()
+
+  await prisma.invoice.updateMany({
+    where: {
+      id: { in: invoiceIds },
+      companyId: company.id,
+      status: { not: "DRAFT" },
+    },
+    data: { archivedAt: new Date() },
+  })
+
+  revalidatePath("/dashboard/invoices")
+}
+
+// Supprimer plusieurs factures brouillon
+export async function bulkDeleteInvoices(invoiceIds: string[]) {
+  const { company } = await getUserCompany()
+
+  await prisma.invoice.deleteMany({
+    where: {
+      id: { in: invoiceIds },
+      companyId: company.id,
+      status: "DRAFT",
+    },
+  })
+
+  revalidatePath("/dashboard/invoices")
+}
+
 // Dupliquer une facture existante (crée un nouveau brouillon)
 export async function duplicateInvoice(invoiceId: string) {
   const { company, user } = await getUserCompany()

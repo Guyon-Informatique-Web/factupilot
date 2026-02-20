@@ -20,10 +20,24 @@ export default async function QuotesPage() {
   })
   if (!company) redirect("/dashboard/onboarding")
 
+  // Devis actifs (non archivés)
   const quotes = await prisma.quote.findMany({
-    where: { companyId: company.id },
+    where: { companyId: company.id, archivedAt: null },
     include: { client: { select: { name: true } } },
     orderBy: { createdAt: "desc" },
+  })
+
+  // Devis archivés
+  const archivedQuotes = await prisma.quote.findMany({
+    where: { companyId: company.id, archivedAt: { not: null } },
+    include: { client: { select: { name: true } } },
+    orderBy: { archivedAt: "desc" },
+  })
+
+  const serializeQuote = (q: typeof quotes[number]) => ({
+    ...q,
+    totalHt: Number(q.totalHt),
+    totalTtc: Number(q.totalTtc),
   })
 
   return (
@@ -50,11 +64,11 @@ export default async function QuotesPage() {
           </Link>
         </div>
       </div>
-      <QuoteList quotes={quotes.map((q) => ({
-        ...q,
-        totalHt: Number(q.totalHt),
-        totalTtc: Number(q.totalTtc),
-      }))} vatRegime={company.vatRegime} />
+      <QuoteList
+        quotes={quotes.map(serializeQuote)}
+        archivedQuotes={archivedQuotes.map(serializeQuote)}
+        vatRegime={company.vatRegime}
+      />
     </div>
   )
 }

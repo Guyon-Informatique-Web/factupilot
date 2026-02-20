@@ -209,6 +209,72 @@ export async function deleteQuote(quoteId: string) {
   redirect("/dashboard/quotes")
 }
 
+// Archiver un devis (non-DRAFT uniquement)
+export async function archiveQuote(quoteId: string) {
+  const { company } = await getUserCompany()
+
+  const quote = await prisma.quote.findFirst({
+    where: { id: quoteId, companyId: company.id },
+  })
+  if (!quote) throw new Error("Devis introuvable")
+  if (quote.status === "DRAFT") throw new Error("Les brouillons doivent être supprimés, pas archivés")
+
+  await prisma.quote.update({
+    where: { id: quoteId },
+    data: { archivedAt: new Date() },
+  })
+
+  revalidatePath("/dashboard/quotes")
+}
+
+// Restaurer un devis archivé
+export async function restoreQuote(quoteId: string) {
+  const { company } = await getUserCompany()
+
+  const quote = await prisma.quote.findFirst({
+    where: { id: quoteId, companyId: company.id },
+  })
+  if (!quote) throw new Error("Devis introuvable")
+
+  await prisma.quote.update({
+    where: { id: quoteId },
+    data: { archivedAt: null },
+  })
+
+  revalidatePath("/dashboard/quotes")
+}
+
+// Archiver plusieurs devis (non-DRAFT uniquement)
+export async function bulkArchiveQuotes(quoteIds: string[]) {
+  const { company } = await getUserCompany()
+
+  await prisma.quote.updateMany({
+    where: {
+      id: { in: quoteIds },
+      companyId: company.id,
+      status: { not: "DRAFT" },
+    },
+    data: { archivedAt: new Date() },
+  })
+
+  revalidatePath("/dashboard/quotes")
+}
+
+// Supprimer plusieurs devis brouillon
+export async function bulkDeleteQuotes(quoteIds: string[]) {
+  const { company } = await getUserCompany()
+
+  await prisma.quote.deleteMany({
+    where: {
+      id: { in: quoteIds },
+      companyId: company.id,
+      status: "DRAFT",
+    },
+  })
+
+  revalidatePath("/dashboard/quotes")
+}
+
 // Dupliquer un devis existant (crée un nouveau brouillon)
 export async function duplicateQuote(quoteId: string) {
   const { company, user } = await getUserCompany()

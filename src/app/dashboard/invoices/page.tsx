@@ -16,10 +16,24 @@ export default async function InvoicesPage() {
   })
   if (!company) redirect("/dashboard/onboarding")
 
+  // Factures actives (non archivées)
   const invoices = await prisma.invoice.findMany({
-    where: { companyId: company.id },
+    where: { companyId: company.id, archivedAt: null },
     include: { client: { select: { name: true } } },
     orderBy: { createdAt: "desc" },
+  })
+
+  // Factures archivées
+  const archivedInvoices = await prisma.invoice.findMany({
+    where: { companyId: company.id, archivedAt: { not: null } },
+    include: { client: { select: { name: true } } },
+    orderBy: { archivedAt: "desc" },
+  })
+
+  const serializeInvoice = (inv: typeof invoices[number]) => ({
+    ...inv,
+    totalHt: Number(inv.totalHt),
+    totalTtc: Number(inv.totalTtc),
   })
 
   return (
@@ -41,11 +55,11 @@ export default async function InvoicesPage() {
           </Link>
         </div>
       </div>
-      <InvoiceList invoices={invoices.map((inv) => ({
-        ...inv,
-        totalHt: Number(inv.totalHt),
-        totalTtc: Number(inv.totalTtc),
-      }))} vatRegime={company.vatRegime} />
+      <InvoiceList
+        invoices={invoices.map(serializeInvoice)}
+        archivedInvoices={archivedInvoices.map(serializeInvoice)}
+        vatRegime={company.vatRegime}
+      />
     </div>
   )
 }

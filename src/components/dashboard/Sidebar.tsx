@@ -13,6 +13,7 @@ import {
   CreditCard,
   LogOut,
   UserCircle,
+  Shield,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { createClient } from "@/lib/supabase/client"
@@ -28,7 +29,11 @@ const navItems = [
   { href: "/dashboard/profile", label: "Mon profil", icon: UserCircle },
 ]
 
-export function Sidebar() {
+interface SidebarProps {
+  isAdmin?: boolean
+}
+
+export function Sidebar({ isAdmin = false }: SidebarProps) {
   const pathname = usePathname()
   const router = useRouter()
   const supabase = createClient()
@@ -38,6 +43,11 @@ export function Sidebar() {
     router.push("/login")
     router.refresh()
   }
+
+  // Ajouter le lien admin si l'utilisateur est admin
+  const items = isAdmin
+    ? [...navItems, { href: "/dashboard/admin", label: "Administration", icon: Shield }]
+    : navItems
 
   return (
     <aside className="flex w-64 flex-col border-r bg-sidebar text-sidebar-foreground">
@@ -50,7 +60,7 @@ export function Sidebar() {
 
       {/* Navigation */}
       <nav className="flex-1 space-y-1 p-4">
-        {navItems.map((item) => {
+        {items.map((item) => {
           const isActive =
             item.href === "/dashboard"
               ? pathname === "/dashboard"

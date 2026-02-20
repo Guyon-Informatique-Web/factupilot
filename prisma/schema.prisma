@@ -194,6 +194,7 @@ model Quote {
   sentAt     DateTime? @map("sent_at")
   acceptedAt DateTime? @map("accepted_at")
   refusedAt  DateTime? @map("refused_at")
+  archivedAt DateTime? @map("archived_at")
   createdAt  DateTime  @default(now()) @map("created_at")
   updatedAt  DateTime  @updatedAt @map("updated_at")
 
@@ -260,9 +261,10 @@ model Invoice {
   pdpSubmittedAt DateTime? @map("pdp_submitted_at")
   pdpError       String?   @map("pdp_error") @db.Text
 
-  sentAt    DateTime? @map("sent_at")
-  createdAt DateTime  @default(now()) @map("created_at")
-  updatedAt DateTime  @updatedAt @map("updated_at")
+  sentAt     DateTime? @map("sent_at")
+  archivedAt DateTime? @map("archived_at")
+  createdAt  DateTime  @default(now()) @map("created_at")
+  updatedAt  DateTime  @updatedAt @map("updated_at")
 
   company   Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
   client    Client        @relation(fields: [clientId], references: [id], onDelete: Cascade)
@@ -304,4 +306,21 @@ model Reminder {
   invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
 
   @@map("reminders")
+}
+
+/// Journal d'erreurs système (persisté en BDD pour l'admin)
+model ErrorLog {
+  id         String   @id @default(cuid())
+  level      String   // ERROR | CRITICAL
+  category   String   // SYSTEM | API | AUTH | PAYMENT | WEBHOOK
+  message    String   @db.Text
+  file       String?
+  line       Int?
+  trace      String?  @db.Text
+  requestUri String?  @map("request_uri")
+  userId     String?  @map("user_id")
+  resolvedAt DateTime? @map("resolved_at")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@map("error_logs")
 }

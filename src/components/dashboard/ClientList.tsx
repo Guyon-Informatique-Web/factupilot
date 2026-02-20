@@ -1,29 +1,25 @@
 "use client"
 
-// Liste des clients avec actions rapides
-import { archiveClient } from "@/app/dashboard/clients/actions"
+// Liste des clients avec actions rapides et sélection multiple
+import { archiveClient, bulkArchiveClients } from "@/app/dashboard/clients/actions"
 import { ClientDialog } from "@/components/dashboard/ClientDialog"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
+import { Checkbox } from "@/components/ui/checkbox"
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
+  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table"
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Input } from "@/components/ui/input"
 import { MoreHorizontal, Archive, Mail, Phone, Users, Search, Eye } from "lucide-react"
 import Link from "next/link"
 import { toast } from "sonner"
 import { useState, useMemo } from "react"
+import { useSelection } from "@/hooks/useSelection"
+import { ConfirmDialog } from "@/components/dashboard/ConfirmDialog"
+import { BulkActionBar } from "@/components/dashboard/BulkActionBar"
 
 interface Client {
   id: string
@@ -45,6 +41,15 @@ interface ClientListProps {
 export function ClientList({ clients }: ClientListProps) {
   const [archiving, setArchiving] = useState<string | null>(null)
   const [search, setSearch] = useState("")
+  const [bulkLoading, setBulkLoading] = useState(false)
+  const [confirmDialog, setConfirmDialog] = useState<{
+    open: boolean
+    title: string
+    description: string
+    confirmLabel: string
+    variant: "default" | "destructive"
+    onConfirm: () => Promise<void>
+  }>({ open: false, title: "", description: "", confirmLabel: "", variant: "default", onConfirm: async () => {} })
 
   const handleArchive = async (clientId: string) => {
     setArchiving(clientId)
@@ -67,6 +72,32 @@ export function ClientList({ clients }: ClientListProps) {
       (c.city && c.city.toLowerCase().includes(q))
     )
   }, [clients, search])
+
+  // Sélection multiple
+  const selection = useSelection(filtered)
+
+  const handleBulkArchive = () => {
+    const ids = selection.selectedItems.map((c) => c.id)
+    setConfirmDialog({
+      open: true,
+      title: `Archiver ${ids.length} client${ids.length > 1 ? "s" : ""}`,
+      description: "Les clients sélectionnés seront archivés. Leurs devis et factures resteront accessibles.",
+      confirmLabel: "Archiver",
+      variant: "default",
+      onConfirm: async () => {
+        setBulkLoading(true)
+        try {
+          await bulkArchiveClients(ids)
+          toast.success(`${ids.length} client${ids.length > 1 ? "s" : ""} archivé${ids.length > 1 ? "s" : ""}`)
+          selection.clearSelection()
+        } catch (err) {
+          toast.error(err instanceof Error ? err.message : "Erreur lors de l'archivage")
+        }
+        setBulkLoading(false)
+        setConfirmDialog((prev) => ({ ...prev, open: false }))
+      },
+    })
+  }
 
   if (clients.length === 0) {
     return (
@@ -101,6 +132,14 @@ export function ClientList({ clients }: ClientListProps) {
         <Table>
           <TableHeader>
             <TableRow>
+              <TableHead className="w-[40px]">
+                <Checkbox
+                  checked={selection.isAllSelected}
+                  // @ts-expect-error — indeterminate n'est pas dans le type mais fonctionne
+                  indeterminate={selection.isPartiallySelected}
+                  onCheckedChange={() => selection.toggleAll()}
+                />
+              </TableHead>
               <TableHead>Nom</TableHead>
               <TableHead className="hidden md:table-cell">Email</TableHead>
               <TableHead className="hidden md:table-cell">Téléphone</TableHead>
@@ -110,7 +149,13 @@ export function ClientList({ clients }: ClientListProps) {
           </TableHeader>
           <TableBody>
             {filtered.map((client) => (
-              <TableRow key={client.id}>
+              <TableRow key={client.id} className={selection.selectedIds.has(client.id) ? "bg-muted/50" : ""}>
+                <TableCell>
+                  <Checkbox
+                    checked={selection.selectedIds.has(client.id)}
+                    onCheckedChange={() => selection.toggle(client.id)}
+                  />
+                </TableCell>
                 <TableCell className="font-medium">
                   <Link href={`/dashboard/clients/${client.id}`} className="hover:underline">
                     {client.name}
@@ -172,6 +217,27 @@ export function ClientList({ clients }: ClientListProps) {
         </Table>
       </CardContent>
     </Card>
+
+      <BulkActionBar
+        count={selection.count}
+        actions={selection.count > 0 ? [{
+          label: "Archiver",
+          icon: <Archive className="h-4 w-4" />,
+          onClick: handleBulkArchive,
+          loading: bulkLoading,
+        }] : []}
+        onCancel={selection.clearSelection}
+      />
+
+      <ConfirmDialog
+        open={confirmDialog.open}
+        onOpenChange={(open) => setConfirmDialog((prev) => ({ ...prev, open }))}
+        title={confirmDialog.title}
+        description={confirmDialog.description}
+        confirmLabel={confirmDialog.confirmLabel}
+        variant={confirmDialog.variant}
+        onConfirm={confirmDialog.onConfirm}
+      />
     </div>
   )
 }

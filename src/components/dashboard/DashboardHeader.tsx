@@ -7,7 +7,7 @@ import Link from "next/link"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
-import { Menu, LayoutDashboard, Users, FileText, Receipt, Settings, LogOut, CreditCard, UserCircle } from "lucide-react"
+import { Menu, LayoutDashboard, Users, FileText, Receipt, Settings, LogOut, CreditCard, UserCircle, Shield } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
 import { useRouter } from "next/navigation"
 
@@ -21,7 +21,11 @@ const navItems = [
   { href: "/dashboard/profile", label: "Mon profil", icon: UserCircle },
 ]
 
-export function DashboardHeader() {
+interface DashboardHeaderProps {
+  isAdmin?: boolean
+}
+
+export function DashboardHeader({ isAdmin = false }: DashboardHeaderProps) {
   const pathname = usePathname()
   const router = useRouter()
   const supabase = createClient()
@@ -33,8 +37,13 @@ export function DashboardHeader() {
     router.refresh()
   }
 
+  // Ajouter le lien admin pour le mobile
+  const items = isAdmin
+    ? [...navItems, { href: "/dashboard/admin", label: "Administration", icon: Shield }]
+    : navItems
+
   // Titre de la page courante
-  const currentPage = navItems.find((item) =>
+  const currentPage = items.find((item) =>
     item.href === "/dashboard"
       ? pathname === "/dashboard"
       : pathname.startsWith(item.href)
@@ -54,7 +63,7 @@ export function DashboardHeader() {
             <span className="text-xl font-bold">FactuPilot</span>
           </div>
           <nav className="space-y-1 p-4">
-            {navItems.map((item) => {
+            {items.map((item) => {
               const isActive =
                 item.href === "/dashboard"
                   ? pathname === "/dashboard"

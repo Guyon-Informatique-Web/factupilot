@@ -1,18 +1,19 @@
-// Service de logging d'erreurs systeme — version sans BDD
-// Envoi email si ERROR/CRITICAL
+// Service de logging d'erreurs système — avec persistance BDD
+// Envoi email si ERROR/CRITICAL + enregistrement en BDD
 // Throttle : 1h entre emails identiques (sauf CRITICAL)
 
 import { sendErrorAlertEmail } from "@/lib/error-email"
+import { prisma } from "@/lib/prisma"
 
-// Types simples (pas de Prisma enum car pas de table ErrorLog)
+// Types simples
 export type ErrorLevel = "ERROR" | "CRITICAL"
 export type ErrorCategory = "SYSTEM" | "API" | "AUTH" | "PAYMENT" | "WEBHOOK"
 
-// Throttle en memoire : cle = hash, valeur = timestamp dernier envoi
+// Throttle en mémoire : clé = hash, valeur = timestamp dernier envoi
 const emailThrottle = new Map<string, number>()
 const THROTTLE_WINDOW = 60 * 60 * 1000 // 1 heure
 
-// Nettoyage periodique
+// Nettoyage périodique
 let lastThrottleCleanup = Date.now()
 const THROTTLE_CLEANUP_INTERVAL = 5 * 60 * 1000 // 5 min
 
@@ -27,7 +28,7 @@ function cleanupThrottle() {
   }
 }
 
-// Generer une cle de throttle simple
+// Générer une clé de throttle simple
 function getThrottleKey(category: string, message: string): string {
   return `${category}:${message.slice(0, 100)}`
 }
@@ -52,6 +53,22 @@ export async function logError(
   try {
     // Log console en fallback systématique
     console.error(`[${level}] [${category}] ${message}`)
+
+    // Persister en BDD (async, ne bloque pas)
+    prisma.errorLog.create({
+      data: {
+        level,
+        category,
+        message,
+        file: context?.file ?? null,
+        line: context?.line ?? null,
+        trace: context?.trace ?? null,
+        requestUri: context?.requestUri ?? null,
+        userId: context?.userId ?? null,
+      },
+    }).catch((err) => {
+      console.error("ErrorLogger - échec persistance BDD:", err)
+    })
 
     // Envoyer email
     cleanupThrottle()
@@ -85,13 +102,13 @@ export async function logError(
   } catch (error) {
     // Ne jamais crash l'appelant
     console.error(
-      "ErrorLogger - echec logging:",
+      "ErrorLogger - échec logging:",
       error instanceof Error ? error.message : error
     )
   }
 }
 
-// Raccourcis par categorie
+// Raccourcis par catégorie
 export function logSystemError(message: string, context?: ErrorContext) {
   return logError("ERROR", "SYSTEM", message, context)
 }
